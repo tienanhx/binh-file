@@ -1,0 +1,200 @@
+﻿{
+    "openapi":  "3.0.1",
+    "info":  {
+                 "title":  "PDF Snake Web API",
+                 "description":  "Imposes documents into booklets, sheets of business cards, etc.",
+                 "version":  "6.227.0"
+             },
+    "servers":  [
+                    {
+                        "url":  "https://api2.pdfsnake.app/api/v2",
+                        "description":  "Production server"
+                    }
+                ],
+    "components":  {
+                       "securitySchemes":  {
+                                               "BearerAuth":  {
+                                                                  "type":  "http",
+                                                                  "scheme":  "bearer",
+                                                                  "description":  "Your API key copied from https://pdfsnake.app/api. Provide your API Key either via an Authorization: Bearer token or via the apiKey field in the request."
+                                                              }
+                                           }
+                   },
+    "paths":  {
+                  "/impose":  {
+                                  "post":  {
+                                               "summary":  "Imposes documents into booklets, sheets of business cards, etc.",
+                                               "description":  "Imposes documents into booklets, sheets of business cards, etc.",
+                                               "security":  [
+                                                                {
+                                                                    "BearerAuth":  [
+
+                                                                                   ]
+                                                                }
+                                                            ],
+                                               "requestBody":  {
+                                                                   "required":  true,
+                                                                   "content":  {
+                                                                                   "multipart/form-data":  {
+                                                                                                               "schema":  {
+                                                                                                                              "type":  "object",
+                                                                                                                              "properties":  {
+                                                                                                                                                 "apiKey":  {
+                                                                                                                                                                "type":  "string",
+                                                                                                                                                                "description":  "Your API key copied from https://pdfsnake.app/api. Provide your API Key either via via this field or an Authorization: Bearer token header.",
+                                                                                                                                                                "nullable":  true
+                                                                                                                                                            },
+                                                                                                                                                 "doc":  {
+                                                                                                                                                             "type":  "string",
+                                                                                                                                                             "format":  "binary",
+                                                                                                                                                             "description":  "The PDF, JPEG, or PNG document to be imposed."
+                                                                                                                                                         },
+                                                                                                                                                 "steps":  {
+                                                                                                                                                               "type":  "string",
+                                                                                                                                                               "format":  "binary",
+                                                                                                                                                               "description":  "JSON file with imposing steps."
+                                                                                                                                                           },
+                                                                                                                                                 "overlay":  {
+                                                                                                                                                                 "type":  "string",
+                                                                                                                                                                 "format":  "binary",
+                                                                                                                                                                 "description":  "Only used when your steps contain an Overlay step.  A PDF document to overlay onto doc.  The file name must match the file name in steps."
+                                                                                                                                                             },
+                                                                                                                                                 "insert":  {
+                                                                                                                                                                "type":  "string",
+                                                                                                                                                                "format":  "binary",
+                                                                                                                                                                "description":  "Only used when your steps contain an Insert Pages step.  A PDF document to insert into doc.  The file name must match the file name in steps."
+                                                                                                                                                            }
+                                                                                                                                             },
+                                                                                                                              "required":  [
+                                                                                                                                               "doc",
+                                                                                                                                               "steps"
+                                                                                                                                           ]
+                                                                                                                          },
+                                                                                                               "encoding":  {
+                                                                                                                                "apiKey":  {
+                                                                                                                                               "contentType":  "text/plain"
+                                                                                                                                           },
+                                                                                                                                "doc":  {
+                                                                                                                                            "contentType":  "application/octet-stream"
+                                                                                                                                        },
+                                                                                                                                "steps":  {
+                                                                                                                                              "contentType":  "application/json"
+                                                                                                                                          },
+                                                                                                                                "overlay":  {
+                                                                                                                                                "contentType":  "application/pdf"
+                                                                                                                                            },
+                                                                                                                                "insert":  {
+                                                                                                                                               "contentType":  "application/pdf"
+                                                                                                                                           }
+                                                                                                                            }
+                                                                                                           }
+                                                                               }
+                                                               },
+                                               "responses":  {
+                                                                 "200":  {
+                                                                             "description":  "Successful impose",
+                                                                             "content":  {
+                                                                                             "application/pdf":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "type":  "string",
+                                                                                                                                    "format":  "binary"
+                                                                                                                                }
+                                                                                                                 },
+                                                                                             "application/zip":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "type":  "string",
+                                                                                                                                    "format":  "binary"
+                                                                                                                                }
+                                                                                                                 }
+                                                                                         }
+                                                                         },
+                                                                 "400":  {
+                                                                             "description":  "Invalid request",
+                                                                             "content":  {
+                                                                                             "text/plain":  {
+                                                                                                                "schema":  {
+                                                                                                                               "type":  "string",
+                                                                                                                               "example":  "No such API key."
+                                                                                                                           }
+                                                                                                            }
+                                                                                         }
+                                                                         }
+                                                             }
+                                           }
+                              },
+                  "/balance":  {
+                                   "post":  {
+                                                "summary":  "Retrieves your current byte balance.",
+                                                "description":  "Retrieves the number of bytes you can transfer to and from the PDF Snake Web API.",
+                                                "security":  [
+                                                                 {
+                                                                     "BearerAuth":  [
+
+                                                                                    ]
+                                                                 }
+                                                             ],
+                                                "requestBody":  {
+                                                                    "required":  false,
+                                                                    "content":  {
+                                                                                    "multipart/form-data":  {
+                                                                                                                "schema":  {
+                                                                                                                               "type":  "object",
+                                                                                                                               "properties":  {
+                                                                                                                                                  "apiKey":  {
+                                                                                                                                                                 "type":  "string",
+                                                                                                                                                                 "description":  "Your API key copied from https://pdfsnake.app/api. Provide your API Key either via via this field or an Authorization: Bearer token header.",
+                                                                                                                                                                 "nullable":  true
+                                                                                                                                                             }
+                                                                                                                                              }
+                                                                                                                           },
+                                                                                                                "encoding":  {
+                                                                                                                                 "apiKey":  {
+                                                                                                                                                "contentType":  "text/plain"
+                                                                                                                                            }
+                                                                                                                             }
+                                                                                                            }
+                                                                                }
+                                                                },
+                                                "responses":  {
+                                                                  "200":  {
+                                                                              "description":  "Successful impose",
+                                                                              "content":  {
+                                                                                              "application/json":  {
+                                                                                                                       "schema":  {
+                                                                                                                                      "type":  "object",
+                                                                                                                                      "properties":  {
+                                                                                                                                                         "balance":  {
+                                                                                                                                                                         "type":  "number",
+                                                                                                                                                                         "example":  42
+                                                                                                                                                                     }
+                                                                                                                                                     }
+                                                                                                                                  }
+                                                                                                                   }
+                                                                                          }
+                                                                          },
+                                                                  "400":  {
+                                                                              "description":  "Invalid request",
+                                                                              "content":  {
+                                                                                              "text/plain":  {
+                                                                                                                 "schema":  {
+                                                                                                                                "type":  "string",
+                                                                                                                                "example":  "No such API key."
+                                                                                                                            }
+                                                                                                             }
+                                                                                          }
+                                                                          }
+                                                              }
+                                            }
+                               }
+              },
+    "security":  [
+                     {
+                         "BearerAuth":  [
+
+                                        ]
+                     },
+                     {
+
+                     }
+                 ]
+}

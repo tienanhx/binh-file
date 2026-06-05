@@ -1,0 +1,21 @@
+# Git Ignore
+node_modules/
+vendor/
+.env
+pdfsnake-app/node_modules/
+pdfsnake-app/vendor/
+pdfsnake-app/.env
+pdfsnake-app/public/storage
+pdfsnake-app/storage/*.key
+pdfsnake-app/storage/framework/cache/data/*
+pdfsnake-app/storage/framework/sessions/*
+pdfsnake-app/storage/framework/testing/*
+pdfsnake-app/storage/framework/views/*
+pdfsnake-app/storage/logs/*
+pdfsnake-app/bootstrap/cache/*
+.idea/
+.vscode/
+*.pdf
+.codegraph/
+*.mjs
+*.js

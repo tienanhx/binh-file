@@ -1,0 +1,79 @@
+HTTP/1.1 200 OK
+Host: localhost:8080
+Connection: close
+X-Powered-By: PHP/8.3.28
+Cache-Control: no-cache, private
+Date: Thu, 04 Jun 2026 09:22:09 GMT
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="imposed_Binh Card Khoa.pdf"
+Access-Control-Expose-Headers: Content-Disposition
+Access-Control-Allow-Origin: *
+
+<!DOCTYPE html>
+<!-- Copyright 2021-2023 Rennie Glen Software LLC -->
+<html lang="en" dir="ltr">
+  <head>
+    <meta NAME="keywords" CONTENT="impose pdf,imposition pdf,quite imposing,imposition online,imposition printing,impose pdf pages,imposition indesign,adobe acrobat imposition,nup pdf,page imposition,pdf imposition online,adobe imposition,impose pages,impose printing,imposition layout,imposing pdf files,booklet imposition,imposition graphic design,logiciel imposition pdf,indesign imposition pdf,imposition book printing,imposition adobe acrobat,batch imposition,imposition book,imposition indesign cs6,imposition pdf indesign,indesign imposer,imposeonline,pdf preps">
+    <meta NAME="description" CONTENT="PDF Snake has all the tools you need to prepare your document for the printing press.">
+    <meta NAME="classification" CONTENT="Word processing, PDF">
+    <meta NAME="revisit-after" CONTENT="10 days">
+    <meta NAME="owner" CONTENT="Rennie Glen Software LLC">
+    <meta NAME="copyright" CONTENT="Rennie Glen Software LLC">
+    <meta HTTP-EQUIV="Content-Language" CONTENT="en">
+    
+    <link rel="alternate" hreflang="en" href="https://pdfsnake.app/" />
+    <link rel="alternate" hreflang="pt" href="https://pt.pdfsnake.app/" />
+    <link rel="alternate" hreflang="es" href="https://es.pdfsnake.app/" />
+    <link rel="alternate" hreflang="fr" href="https://fr.pdfsnake.app/" />
+    <link rel="alternate" hreflang="id" href="https://id.pdfsnake.app/" />
+    <link rel="alternate" hreflang="ja" href="https://ja.pdfsnake.app/" />
+    <link rel="alternate" hreflang="ar" href="https://ar.pdfsnake.app/" />
+    <link rel="alternate" hreflang="zh" href="https://zh.pdfsnake.app/" />
+  
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+    <!-- PWA params -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/img/icons/favicon-16x16.png">
+    <meta name="theme-color" content="#EEFFEE">
+    <meta name="apple-mobile-web-app-capable" content="no">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="PDF Snake">
+    <link rel="apple-touch-icon" href="/img/icons/apple-touch-icon-152x152.png">
+    <link rel="mask-icon" href="/img/icons/android-chrome-192x192.png" color="#FFFFFF">
+    <meta name="msapplication-TileImage" content="/img/icons/msapplication-icon-144x144.png">
+    <meta name="msapplication-TileColor" content="#FFFFFF">
+
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-X69TS6D1SW"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      window.GA_TRACKING_ID = 'G-X69TS6D1SW';
+      function gtag(){dataLayer.push(arguments);}
+      window.gtag = gtag;
+      gtag('set', 'linker', {'domains': ['pdfsnake.com']});
+      gtag('js', new Date());
+
+      gtag('config', GA_TRACKING_ID, {send_page_view: false});
+      gtag('config', 'AW-580852876');    
+    </script>
+    <!-- End Google Analytics -->
+    
+    <!-- Font Awesome -->
+          
+    <!-- End Font Awesome -->
+
+    <title>PDF Snake</title>
+    <script type="module" crossorigin src="/assets/index-BwIP7FAE.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D8MEKHVB.css">
+  </head>
+  <body>
+    <noscript>
+      <strong>We're sorry but PDF Snake doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
+    </noscript>
+    <div id="app"></div>
+  </body>
+</html>

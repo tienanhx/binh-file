@@ -1,0 +1,44 @@
+{
+  "comment": "Only 'steps' are required.  The other fields are ignored by PDF Snake CLI.",
+  "steps": [
+    {
+      "kind": "Cards",
+      "paperWidth": 1354.9606299212598,
+      "paperHeight": 915.5905511811024,
+      "leftMargin": 28.34645669291339,
+      "topMargin": 28.34645669291339,
+      "verticalGutterWidth": 8.503937007874017,
+      "horizontalGutterWidth": 8.503937007874017,
+      "center": true,
+      "pageOrder": "stepAndRepeat",
+      "doubleSided": false,
+      "repeat": 1,
+      "newStackOrder": true,
+      "cropMarks": true,
+      "marksInGutters": true,
+      "centerMarks": false,
+      "lineLength": 28.34645669291339,
+      "lineThickness": 1,
+      "lineDistance": 10,
+      "fourColorBlack": false,
+      "whiteBorder": false,
+      "bleeds": "pullFromDoc",
+      "fixedBleedLeft": 14.4,
+      "fixedBleedTop": 14.4,
+      "direction": "leftToRight",
+      "columns": 2,
+      "rows": 2,
+      "preserveAspectRatio": true,
+      "scale": false
+    }
+  ],
+  "kind": "PDFSnakeValues",
+  "version": [
+    1,
+    6,
+    348
+  ],
+  "thumbUrl": "data:image/png;base64,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",
+  "thumbHeight": 109,
+  "thumbWidth": 100
+}

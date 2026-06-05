@@ -1,0 +1,17 @@
+[
+  {
+    "kind": "Grid",
+    "rows": 2,
+    "cols": 2,
+    "paperWidth": 1190,
+    "paperHeight": 1684,
+    "leftMargin": 28.346,
+    "topMargin": 28.346,
+    "rightMargin": 28.346,
+    "bottomMargin": 28.346,
+    "horizontalGutter": 8.504,
+    "verticalGutter": 8.504,
+    "center": true,
+    "cropMarks": true
+  }
+]
