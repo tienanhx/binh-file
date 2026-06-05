@@ -37,6 +37,8 @@ export default function PdfEditor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [keepOriginalSize, setKeepOriginalSize] = useState(true);
+  const [zoom, setZoom] = useState(1.0);
 
   // Ngăn chặn mặc định trình duyệt mở file khi kéo thả bên ngoài vùng tải lên
   React.useEffect(() => {
@@ -251,6 +253,18 @@ export default function PdfEditor() {
       const lineLen = 28.34645669291339; // ~10mm crop mark length
 
       const srcPages = srcDoc.getPages();
+      srcPages.forEach((page) => {
+        try {
+          const trimBox = page.getTrimBox();
+          const mediaBox = page.getMediaBox();
+          if (trimBox && (Math.abs(trimBox.width - mediaBox.width) > 1 || Math.abs(trimBox.height - mediaBox.height) > 1)) {
+            page.setMediaBox(trimBox.x, trimBox.y, trimBox.width, trimBox.height);
+            page.setCropBox(trimBox.x, trimBox.y, trimBox.width, trimBox.height);
+          }
+        } catch (e) {
+          console.warn('Lỗi khi xén TrimBox cho file xuất:', e);
+        }
+      });
       const numSrcPages = srcPages.length;
       const embeddedPages = await destDoc.embedPages(srcPages);
 
@@ -270,6 +284,27 @@ export default function PdfEditor() {
         const cellWidth = ((printableWidth - (cols - 1) * gutterX) / cols) * MM_TO_POINTS;
         const cellHeight = ((printableHeight - (rows - 1) * gutterY) / rows) * MM_TO_POINTS;
 
+        let startXPt = leftMarginPt;
+        let startYPt = topMarginPt;
+
+        if (keepOriginalSize && embeddedPages.length > 0) {
+          const firstPage = embeddedPages[0];
+          const cardW = firstPage.width;
+          const cardH = firstPage.height;
+          const cellAspect = cellWidth / cellHeight;
+          const cardAspect = cardW / cardH;
+          const shouldRotate = (cardAspect > 1 && cellAspect < 1) || (cardAspect < 1 && cellAspect > 1);
+
+          const drawW = shouldRotate ? cardH : cardW;
+          const drawH = shouldRotate ? cardW : cardH;
+
+          const totalGridWidth = cols * drawW + (cols - 1) * gutterXPt;
+          const totalGridHeight = rows * drawH + (rows - 1) * gutterYPt;
+
+          startXPt = (paperWidthPt - totalGridWidth) / 2;
+          startYPt = (paperHeightPt - totalGridHeight) / 2;
+        }
+
         for (let s = 0; s < totalSheets; s++) {
           const destPage = destDoc.addPage([paperWidthPt, paperHeightPt]);
           
@@ -288,36 +323,43 @@ export default function PdfEditor() {
                 const cardW = embeddedPage.width;
                 const cardH = embeddedPage.height;
 
-                // Tọa độ góc dưới bên trái của ô trong hệ tọa độ PDF (gốc 0,0 ở góc dưới trái giấy)
-                const cellLeft = leftMarginPt + c * (cellWidth + gutterXPt);
-                const cellTopFromTop = topMarginPt + r * (cellHeight + gutterYPt);
-                const cellBottom = paperHeightPt - cellTopFromTop - cellHeight;
-
-                // Tỷ lệ co giãn
-                let scaleFactor = 1.0;
-                let drawW = cardW;
-                let drawH = cardH;
-                let offsetX = 0;
-                let offsetY = 0;
-
                 const cellAspect = cellWidth / cellHeight;
                 const cardAspect = cardW / cardH;
 
                 const shouldRotate = (cardAspect > 1 && cellAspect < 1) || (cardAspect < 1 && cellAspect > 1);
-                const effectiveAspectRatio = shouldRotate ? (1 / cardAspect) : cardAspect;
 
-                if (effectiveAspectRatio > cellAspect) {
-                  drawW = cellWidth;
-                  drawH = cellWidth / effectiveAspectRatio;
-                  offsetY = (cellHeight - drawH) / 2;
+                let drawW = 0;
+                let drawH = 0;
+                let x = 0;
+                let y = 0;
+
+                if (keepOriginalSize) {
+                  drawW = shouldRotate ? cardH : cardW;
+                  drawH = shouldRotate ? cardW : cardH;
+                  
+                  x = startXPt + c * (drawW + gutterXPt);
+                  y = paperHeightPt - startYPt - (r + 1) * drawH - r * gutterYPt;
                 } else {
-                  drawW = cellHeight * effectiveAspectRatio;
-                  drawH = cellHeight;
-                  offsetX = (cellWidth - drawW) / 2;
-                }
+                  // Tọa độ góc dưới bên trái của ô trong hệ tọa độ PDF (gốc 0,0 ở góc dưới trái giấy)
+                  const cellLeft = leftMarginPt + c * (cellWidth + gutterXPt);
+                  const cellTopFromTop = topMarginPt + r * (cellHeight + gutterYPt);
+                  const cellBottom = paperHeightPt - cellTopFromTop - cellHeight;
 
-                const x = cellLeft + offsetX;
-                const y = cellBottom + offsetY;
+                  const effectiveAspectRatio = shouldRotate ? (1 / cardAspect) : cardAspect;
+                  if (effectiveAspectRatio > cellAspect) {
+                    drawW = cellWidth;
+                    drawH = cellWidth / effectiveAspectRatio;
+                  } else {
+                    drawW = cellHeight * effectiveAspectRatio;
+                    drawH = cellHeight;
+                  }
+
+                  const offsetX = (cellWidth - drawW) / 2;
+                  const offsetY = (cellHeight - drawH) / 2;
+
+                  x = cellLeft + offsetX;
+                  y = cellBottom + offsetY;
+                }
 
                 // Vẽ trang con
                 if (shouldRotate) {
@@ -337,33 +379,64 @@ export default function PdfEditor() {
                   });
                 }
 
-                // Vẽ Crop Marks (Vạch cắt)
-                if (cropMarks) {
-                  const x1 = x;
-                  const y1 = y;
-                  const x2 = x + drawW;
-                  const y2 = y + drawH;
-                  const dist = 10; // Khoảng cách 10pt (~3.5mm) từ vạch cắt tới card
-                  const thickness = 0.5;
-                  const color = rgb(0.93, 0.27, 0.27); // Màu đỏ
-
-                  // Góc dưới - trái
-                  destPage.drawLine({ start: { x: x1 - dist - lineLen, y: y1 }, end: { x: x1 - dist, y: y1 }, thickness, color });
-                  destPage.drawLine({ start: { x: x1, y: y1 - dist - lineLen }, end: { x: x1, y: y1 - dist }, thickness, color });
-
-                  // Góc dưới - phải
-                  destPage.drawLine({ start: { x: x2 + dist, y: y1 }, end: { x: x2 + dist + lineLen, y: y1 }, thickness, color });
-                  destPage.drawLine({ start: { x: x2, y: y1 - dist - lineLen }, end: { x: x2, y: y1 - dist }, thickness, color });
-
-                  // Góc trên - trái
-                  destPage.drawLine({ start: { x: x1 - dist - lineLen, y: y2 }, end: { x: x1 - dist, y: y2 }, thickness, color });
-                  destPage.drawLine({ start: { x: x1, y: y2 + dist }, end: { x: x1, y: y2 + dist + lineLen }, thickness, color });
-
-                  // Góc trên - phải
-                  destPage.drawLine({ start: { x: x2 + dist, y: y2 }, end: { x: x2 + dist + lineLen, y: y2 }, thickness, color });
-                  destPage.drawLine({ start: { x: x2, y: y2 + dist }, end: { x: x2, y: y2 + dist + lineLen }, thickness, color });
-                }
               }
+            }
+          }
+
+          // Vẽ Crop Marks (Vạch cắt biên ngoài) cho cả tờ in nếu được kích hoạt
+          if (cropMarks && embeddedPages.length > 0) {
+            const firstPage = embeddedPages[0];
+            const cardW = firstPage.width;
+            const cardH = firstPage.height;
+            const cellAspect = cellWidth / cellHeight;
+            const cardAspect = cardW / cardH;
+            const shouldRotate = (cardAspect > 1 && cellAspect < 1) || (cardAspect < 1 && cellAspect > 1);
+
+            const drawW = keepOriginalSize ? (shouldRotate ? cardH : cardW) : cellWidth;
+            const drawH = keepOriginalSize ? (shouldRotate ? cardW : cardH) : cellHeight;
+
+            const gridLeft = keepOriginalSize ? startXPt : leftMarginPt;
+            const gridTopFromTop = keepOriginalSize ? startYPt : topMarginPt;
+            const gridBottomFromTop = gridTopFromTop + rows * drawH + (rows - 1) * (keepOriginalSize ? gutterYPt : gutterY * MM_TO_POINTS);
+            const gridRight = gridLeft + cols * drawW + (cols - 1) * (keepOriginalSize ? gutterXPt : gutterX * MM_TO_POINTS);
+
+            const dist = 10; // Khoảng cách 10pt (~3.5mm)
+            const thickness = 0.5;
+            const color = rgb(0.93, 0.27, 0.27); // Màu đỏ
+
+            // 1. Vẽ vạch cắt dọc ở biên trên và biên dưới
+            for (let c = 0; c < cols; c++) {
+              const x1 = gridLeft + c * (drawW + (keepOriginalSize ? gutterXPt : gutterX * MM_TO_POINTS));
+              const x2 = x1 + drawW;
+
+              // Biên trên (y tính từ dưới lên, nên biên trên của dòng 0 là paperHeightPt - gridTopFromTop)
+              const yTop = paperHeightPt - gridTopFromTop;
+              destPage.drawLine({ start: { x: x1, y: yTop + dist }, end: { x: x1, y: yTop + dist + lineLen }, thickness, color });
+              destPage.drawLine({ start: { x: x2, y: yTop + dist }, end: { x: x2, y: yTop + dist + lineLen }, thickness, color });
+
+              // Biên dưới
+              const yBottom = paperHeightPt - gridBottomFromTop;
+              destPage.drawLine({ start: { x: x1, y: yBottom - dist }, end: { x: x1, y: yBottom - dist - lineLen }, thickness, color });
+              destPage.drawLine({ start: { x: x2, y: yBottom - dist }, end: { x: x2, y: yBottom - dist - lineLen }, thickness, color });
+            }
+
+            // 2. Vẽ vạch cắt ngang ở biên trái và biên phải
+            for (let r = 0; r < rows; r++) {
+              const y1FromTop = gridTopFromTop + r * (drawH + (keepOriginalSize ? gutterYPt : gutterY * MM_TO_POINTS));
+              const y2FromTop = y1FromTop + drawH;
+
+              const y1 = paperHeightPt - y1FromTop;
+              const y2 = paperHeightPt - y2FromTop;
+
+              // Biên trái
+              const xLeft = gridLeft;
+              destPage.drawLine({ start: { x: xLeft - dist, y: y1 }, end: { x: xLeft - dist - lineLen, y: y1 }, thickness, color });
+              destPage.drawLine({ start: { x: xLeft - dist, y: y2 }, end: { x: xLeft - dist - lineLen, y: y2 }, thickness, color });
+
+              // Biên phải
+              const xRight = gridRight;
+              destPage.drawLine({ start: { x: xRight + dist, y: y1 }, end: { x: xRight + dist + lineLen, y: y1 }, thickness, color });
+              destPage.drawLine({ start: { x: xRight + dist, y: y2 }, end: { x: xRight + dist + lineLen, y: y2 }, thickness, color });
             }
           }
         }
@@ -733,18 +806,35 @@ export default function PdfEditor() {
           </div>
         </div>
 
-        {/* Step 6: Visual Marks */}
-        <div className="flex items-center gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800/50">
-          <input 
-            type="checkbox" 
-            id="cropMarks"
-            checked={cropMarks}
-            onChange={(e) => setCropMarks(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 bg-slate-800 border-slate-700 rounded focus:ring-indigo-500 focus:ring-2"
-          />
-          <label htmlFor="cropMarks" className="text-sm font-semibold text-slate-300 cursor-pointer select-none">
-            Tự vẽ vạch cắt (Crop Marks)
-          </label>
+        {/* Step 6: Visual Marks & Options */}
+        <div className="flex flex-col gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800/50">
+          <div className="flex items-center gap-3">
+            <input 
+              type="checkbox" 
+              id="cropMarks"
+              checked={cropMarks}
+              onChange={(e) => setCropMarks(e.target.checked)}
+              className="w-4 h-4 text-indigo-600 bg-slate-800 border-slate-700 rounded focus:ring-indigo-500 focus:ring-2"
+            />
+            <label htmlFor="cropMarks" className="text-sm font-semibold text-slate-300 cursor-pointer select-none">
+              Tự vẽ vạch cắt (Crop Marks)
+            </label>
+          </div>
+
+          {mode === 'grid' && (
+            <div className="flex items-center gap-3 pt-2 border-t border-slate-800/60">
+              <input 
+                type="checkbox" 
+                id="keepOriginalSize"
+                checked={keepOriginalSize}
+                onChange={(e) => setKeepOriginalSize(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 bg-slate-800 border-slate-700 rounded focus:ring-indigo-500 focus:ring-2"
+              />
+              <label htmlFor="keepOriginalSize" className="text-sm font-semibold text-slate-300 cursor-pointer select-none">
+                Giữ kích thước gốc (100%)
+              </label>
+            </div>
+          )}
         </div>
 
       </div>
@@ -757,6 +847,35 @@ export default function PdfEditor() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white">Khung làm việc chính</h2>
             <p className="text-sm text-slate-400">Xem trước sơ đồ in thời gian thực (WYSIWYG)</p>
+          </div>
+
+          {/* Zoom controls inside header */}
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700/60 rounded-full px-4 py-1.5 shadow-md">
+            <button
+              onClick={() => setZoom(Math.max(0.5, zoom - 0.15))}
+              title="Thu nhỏ"
+              className="text-slate-300 hover:text-white p-1 hover:bg-slate-700/60 rounded-full transition-colors text-xs font-bold w-6 h-6 flex items-center justify-center cursor-pointer"
+            >
+              ➖
+            </button>
+            <span className="text-xs font-mono font-bold text-slate-200 px-2 min-w-[50px] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom(Math.min(2.5, zoom + 0.15))}
+              title="Phóng to"
+              className="text-slate-300 hover:text-white p-1 hover:bg-slate-700/60 rounded-full transition-colors text-xs font-bold w-6 h-6 flex items-center justify-center cursor-pointer"
+            >
+              ➕
+            </button>
+            <div className="w-px h-4 bg-slate-700 mx-1"></div>
+            <button
+              onClick={() => setZoom(1.0)}
+              title="Kích thước chuẩn"
+              className="text-xs text-indigo-400 hover:text-indigo-300 font-bold px-2 py-0.5 hover:bg-slate-750 rounded transition-colors cursor-pointer"
+            >
+              100%
+            </button>
           </div>
           
           <button
@@ -824,6 +943,8 @@ export default function PdfEditor() {
             setCurrentSheetIndex={setCurrentSheetIndex}
             onTotalSheetsCalculated={setTotalSheets}
             onPdfLoaded={setPdfPages}
+            zoom={zoom}
+            keepOriginalSize={keepOriginalSize}
           />
         </div>
 

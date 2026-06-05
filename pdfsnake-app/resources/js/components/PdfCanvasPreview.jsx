@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFDocument } from 'pdf-lib';
 // Cấu hình Worker cho PDF.js chạy trực tiếp từ same-origin public folder để tránh lỗi CORS trong chế độ dev
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
 
@@ -35,10 +36,11 @@ export default function PdfCanvasPreview({
   setCurrentSheetIndex,
   onTotalSheetsCalculated,
   onPdfLoaded,
+  zoom = 1.0,
+  keepOriginalSize = true,
 }) {
   const [pages, setPages] = useState([]); // Chứa danh sách data URL các trang PDF gốc
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [zoom, setZoom] = useState(1.0);
   const canvasRef = useRef(null);
 
   // 1. Phân tích PDF và chuyển đổi sang dạng ảnh xem trước (canvas -> dataURL)
@@ -55,7 +57,28 @@ export default function PdfCanvasPreview({
         const fileReader = new FileReader();
         fileReader.onload = async function () {
           try {
-            const typedarray = new Uint8Array(this.result);
+            let typedarray = new Uint8Array(this.result);
+
+            // Tự động phát hiện và xén theo TrimBox/CropBox bằng pdf-lib trước khi đưa vào PDF.js
+            try {
+              const pdfDoc = await PDFDocument.load(typedarray);
+              let modified = false;
+              pdfDoc.getPages().forEach((page) => {
+                const trimBox = page.getTrimBox();
+                const mediaBox = page.getMediaBox();
+                if (trimBox && (Math.abs(trimBox.width - mediaBox.width) > 1 || Math.abs(trimBox.height - mediaBox.height) > 1)) {
+                  page.setMediaBox(trimBox.x, trimBox.y, trimBox.width, trimBox.height);
+                  page.setCropBox(trimBox.x, trimBox.y, trimBox.width, trimBox.height);
+                  modified = true;
+                }
+              });
+              if (modified) {
+                typedarray = await pdfDoc.save();
+              }
+            } catch (err) {
+              console.warn('Lỗi khi kiểm tra/xén TrimBox trong preview:', err);
+            }
+
             const loadingTask = pdfjsLib.getDocument({ data: typedarray });
             const pdf = await loadingTask.promise;
             const renderedPages = [];
@@ -97,6 +120,16 @@ export default function PdfCanvasPreview({
 
     renderPdf();
   }, [pdfFile]);
+
+  // Ép kiểu các thuộc tính nhập vào dạng số để tránh lỗi ghép chuỗi trong Javascript
+  const gX = Number(gutterX);
+  const gY = Number(gutterY);
+  const mL = Number(marginLeft);
+  const mR = Number(marginRight);
+  const mT = Number(marginTop);
+  const mB = Number(marginBottom);
+  const cCount = Number(cols);
+  const rCount = Number(rows);
 
   // 2. Tính toán kích thước Khổ giấy đích (đơn vị: mm)
   const getPaperDimensions = () => {
@@ -149,15 +182,15 @@ export default function PdfCanvasPreview({
 
   if (pages.length > 0) {
     if (mode === 'grid') {
-      const pagesPerSheet = rows * cols;
+      const pagesPerSheet = rCount * cCount;
       
       if (pages.length <= 2) {
         // Tự động lặp lại trang đơn / trang 2 mặt để phủ kín toàn bộ lưới tờ in (thường dùng in namecard)
         totalSheets = pages.length;
         const activePageIdx = currentSheetIndex < pages.length ? currentSheetIndex : 0;
 
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rCount; r++) {
+          for (let c = 0; c < cCount; c++) {
             layoutPages.push({
               pageIndex: activePageIdx,
               row: r,
@@ -170,9 +203,9 @@ export default function PdfCanvasPreview({
         // Đối với file nhiều trang khác nhau, xếp thứ tự tuần tự
         totalSheets = Math.ceil(pages.length / pagesPerSheet);
         const startIdx = currentSheetIndex * pagesPerSheet;
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const cellIndex = r * cols + c;
+        for (let r = 0; r < rCount; r++) {
+          for (let c = 0; c < cCount; c++) {
+            const cellIndex = r * cCount + c;
             const pageIndex = startIdx + cellIndex;
             if (pageIndex < pages.length) {
               layoutPages.push({
@@ -262,10 +295,10 @@ export default function PdfCanvasPreview({
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 5]);
     ctx.strokeRect(
-      marginLeft * scale,
-      marginTop * scale,
-      (sheetDim.width - marginLeft - marginRight) * scale,
-      (sheetDim.height - marginTop - marginBottom) * scale
+      mL * scale,
+      mT * scale,
+      (sheetDim.width - mL - mR) * scale,
+      (sheetDim.height - mT - mB) * scale
     );
     ctx.setLineDash([]); // Reset nét đứt
 
@@ -280,49 +313,84 @@ export default function PdfCanvasPreview({
     }
 
     // Tính toán kích thước lưới ô (Cells)
-    const activeCols = mode === 'booklet' ? 2 : cols;
-    const activeRows = mode === 'booklet' ? 1 : rows;
+    const activeCols = mode === 'booklet' ? 2 : cCount;
+    const activeRows = mode === 'booklet' ? 1 : rCount;
 
-    const printableWidth = sheetDim.width - marginLeft - marginRight;
-    const printableHeight = sheetDim.height - marginTop - marginBottom;
+    const printableWidth = sheetDim.width - mL - mR;
+    const printableHeight = sheetDim.height - mT - mB;
 
     // Chiều rộng và chiều cao tối đa của mỗi ô sau khi trừ khoảng cách (Gutter)
-    const cellWidth = (printableWidth - (activeCols - 1) * gutterX) / activeCols;
-    const cellHeight = (printableHeight - (activeRows - 1) * gutterY) / activeRows;
+    const cellWidth = (printableWidth - (activeCols - 1) * gX) / activeCols;
+    const cellHeight = (printableHeight - (activeRows - 1) * gY) / activeRows;
+
+    // Tính tọa độ bắt đầu căn giữa toàn bộ lưới khi giữ kích thước gốc
+    let startX = mL;
+    let startY = mT;
+    if (keepOriginalSize && pages.length > 0 && mode === 'grid') {
+      const MM_TO_POINTS = 72 / 25.4;
+      const firstPage = pages[0];
+      const cardWidth = firstPage.width / MM_TO_POINTS;
+      const cardHeight = firstPage.height / MM_TO_POINTS;
+      const cellAspect = cellWidth / cellHeight;
+      const shouldRotate = (firstPage.aspectRatio > 1 && cellAspect < 1) || (firstPage.aspectRatio < 1 && cellAspect > 1);
+      
+      const drawW = shouldRotate ? cardHeight : cardWidth;
+      const drawH = shouldRotate ? cardWidth : cardHeight;
+      
+      const totalGridWidth = activeCols * drawW + (activeCols - 1) * gX;
+      const totalGridHeight = activeRows * drawH + (activeRows - 1) * gY;
+      
+      startX = (sheetDim.width - totalGridWidth) / 2;
+      startY = (sheetDim.height - totalGridHeight) / 2;
+    }
 
     // Vẽ các trang lên tờ in
     layoutPages.forEach((item) => {
       const pageInfo = pages[item.pageIndex];
       if (!pageInfo) return;
 
-      // Tọa độ góc trên bên trái của ô (đơn vị: mm)
-      const cellLeft = marginLeft + item.col * (cellWidth + gutterX);
-      const cellTop = marginTop + item.row * (cellHeight + gutterY);
-
-      // Tự động xoay 90 độ nếu hướng của card ngược với hướng ô lưới để tối ưu diện tích
+      // Tính kích thước và vị trí của card con
       const cellAspect = cellWidth / cellHeight;
       const shouldRotate = (pageInfo.aspectRatio > 1 && cellAspect < 1) || (pageInfo.aspectRatio < 1 && cellAspect > 1);
-      const effectiveAspectRatio = shouldRotate ? (1 / pageInfo.aspectRatio) : pageInfo.aspectRatio;
 
-      // Tính toán vị trí trang vừa khít trong ô lưới (Scale Fit)
-      let drawW = cellWidth;
-      let drawH = cellHeight;
+      let cellLeft = 0;
+      let cellTop = 0;
+      let drawW = 0;
+      let drawH = 0;
       let offsetX = 0;
       let offsetY = 0;
 
-      if (effectiveAspectRatio > cellAspect) {
-        // Trang rộng hơn ô: fit theo chiều ngang
-        drawH = cellWidth / effectiveAspectRatio;
-        offsetY = (cellHeight - drawH) / 2;
+      if (keepOriginalSize) {
+        const MM_TO_POINTS = 72 / 25.4;
+        const cardWidth = pageInfo.width / MM_TO_POINTS;
+        const cardHeight = pageInfo.height / MM_TO_POINTS;
+        
+        drawW = shouldRotate ? cardHeight : cardWidth;
+        drawH = shouldRotate ? cardWidth : cardHeight;
+        
+        cellLeft = startX + item.col * (drawW + gX);
+        cellTop = startY + item.row * (drawH + gY);
       } else {
-        // Trang cao hơn ô: fit theo chiều dọc
-        drawW = cellHeight * effectiveAspectRatio;
-        offsetX = (cellWidth - drawW) / 2;
+        cellLeft = mL + item.col * (cellWidth + gX);
+        cellTop = mT + item.row * (cellHeight + gY);
+        
+        const effectiveAspectRatio = shouldRotate ? (1 / pageInfo.aspectRatio) : pageInfo.aspectRatio;
+        if (effectiveAspectRatio > cellAspect) {
+          // Trang rộng hơn ô: fit theo chiều ngang
+          drawW = cellWidth;
+          drawH = cellWidth / effectiveAspectRatio;
+          offsetY = (cellHeight - drawH) / 2;
+        } else {
+          // Trang cao hơn ô: fit theo chiều dọc
+          drawW = cellHeight * effectiveAspectRatio;
+          drawH = cellHeight;
+          offsetX = (cellWidth - drawW) / 2;
+        }
       }
 
       // Đổi sang pixel canvas
-      const xPx = (cellLeft + offsetX) * scale;
-      const yPx = (cellTop + offsetY) * scale;
+      const xPx = cellLeft * scale;
+      const yPx = cellTop * scale;
       const wPx = drawW * scale;
       const hPx = drawH * scale;
 
@@ -364,46 +432,74 @@ export default function PdfCanvasPreview({
         img.onload();
       }
 
-      // Vẽ vạch cắt (Crop Marks) nếu được kích hoạt
-      if (cropMarks) {
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 1.5;
-        const markLen = 8 * scale; // vạch dài 8mm quy ra pixel
+    });
 
-        // Vẽ 4 góc của ô chứa trang con
-        // Góc trên bên trái
+    // Vẽ vạch cắt (Crop Marks) biên ngoài nếu được kích hoạt
+    if (cropMarks && pages.length > 0 && mode === 'grid') {
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      const markLen = 8 * scale; // vạch dài 8mm quy ra pixel
+      const dist = 3 * scale; // khoảng cách 3mm từ vạch cắt tới grid
+
+      const firstPage = pages[0];
+      const MM_TO_POINTS = 72 / 25.4;
+      const cardWidth = firstPage.width / MM_TO_POINTS;
+      const cardHeight = firstPage.height / MM_TO_POINTS;
+      const cellAspect = cellWidth / cellHeight;
+      const shouldRotate = (firstPage.aspectRatio > 1 && cellAspect < 1) || (firstPage.aspectRatio < 1 && cellAspect > 1);
+
+      const drawW = keepOriginalSize ? (shouldRotate ? cardHeight : cardWidth) : cellWidth;
+      const drawH = keepOriginalSize ? (shouldRotate ? cardWidth : cardHeight) : cellHeight;
+
+      const gridLeft = keepOriginalSize ? startX : mL;
+      const gridTop = keepOriginalSize ? startY : mT;
+      const gridRight = gridLeft + activeCols * drawW + (activeCols - 1) * gX;
+      const gridBottom = gridTop + activeRows * drawH + (activeRows - 1) * gY;
+
+      // 1. Vẽ các vạch cắt dọc ở biên trên và biên dưới
+      for (let c = 0; c < activeCols; c++) {
+        const x1 = gridLeft + c * (drawW + gX);
+        const x2 = x1 + drawW;
+
+        // Vạch dọc ở biên trên
         ctx.beginPath();
-        ctx.moveTo(xPx - 2 * scale, yPx);
-        ctx.lineTo(xPx - 2 * scale - markLen, yPx);
-        ctx.moveTo(xPx, yPx - 2 * scale);
-        ctx.lineTo(xPx, yPx - 2 * scale - markLen);
+        ctx.moveTo(x1 * scale, (gridTop - dist) * scale);
+        ctx.lineTo(x1 * scale, (gridTop - dist - 8) * scale);
+        ctx.moveTo(x2 * scale, (gridTop - dist) * scale);
+        ctx.lineTo(x2 * scale, (gridTop - dist - 8) * scale);
         ctx.stroke();
 
-        // Góc trên bên phải
+        // Vạch dọc ở biên dưới
         ctx.beginPath();
-        ctx.moveTo(xPx + wPx + 2 * scale, yPx);
-        ctx.lineTo(xPx + wPx + 2 * scale + markLen, yPx);
-        ctx.moveTo(xPx + wPx, yPx - 2 * scale);
-        ctx.lineTo(xPx + wPx, yPx - 2 * scale - markLen);
-        ctx.stroke();
-
-        // Góc dưới bên trái
-        ctx.beginPath();
-        ctx.moveTo(xPx - 2 * scale, yPx + hPx);
-        ctx.lineTo(xPx - 2 * scale - markLen, yPx + hPx);
-        ctx.moveTo(xPx, yPx + hPx + 2 * scale);
-        ctx.lineTo(xPx, yPx + hPx + 2 * scale + markLen);
-        ctx.stroke();
-
-        // Góc dưới bên phải
-        ctx.beginPath();
-        ctx.moveTo(xPx + wPx + 2 * scale, yPx + hPx);
-        ctx.lineTo(xPx + wPx + 2 * scale + markLen, yPx + hPx);
-        ctx.moveTo(xPx + wPx, yPx + hPx + 2 * scale);
-        ctx.lineTo(xPx + wPx, yPx + hPx + 2 * scale + markLen);
+        ctx.moveTo(x1 * scale, (gridBottom + dist) * scale);
+        ctx.lineTo(x1 * scale, (gridBottom + dist + 8) * scale);
+        ctx.moveTo(x2 * scale, (gridBottom + dist) * scale);
+        ctx.lineTo(x2 * scale, (gridBottom + dist + 8) * scale);
         ctx.stroke();
       }
-    });
+
+      // 2. Vẽ các vạch cắt ngang ở biên trái và biên phải
+      for (let r = 0; r < activeRows; r++) {
+        const y1 = gridTop + r * (drawH + gY);
+        const y2 = y1 + drawH;
+
+        // Vạch ngang ở biên trái
+        ctx.beginPath();
+        ctx.moveTo((gridLeft - dist) * scale, y1 * scale);
+        ctx.lineTo((gridLeft - dist - 8) * scale, y1 * scale);
+        ctx.moveTo((gridLeft - dist) * scale, y2 * scale);
+        ctx.lineTo((gridLeft - dist - 8) * scale, y2 * scale);
+        ctx.stroke();
+
+        // Vạch ngang ở biên phải
+        ctx.beginPath();
+        ctx.moveTo((gridRight + dist) * scale, y1 * scale);
+        ctx.lineTo((gridRight + dist + 8) * scale, y1 * scale);
+        ctx.moveTo((gridRight + dist) * scale, y2 * scale);
+        ctx.lineTo((gridRight + dist + 8) * scale, y2 * scale);
+        ctx.stroke();
+      }
+    }
 
     return () => {
       active = false;
@@ -411,20 +507,21 @@ export default function PdfCanvasPreview({
   }, [
     pages,
     mode,
-    rows,
-    cols,
-    marginTop,
-    marginBottom,
-    marginLeft,
-    marginRight,
-    gutterX,
-    gutterY,
+    rCount,
+    cCount,
+    mT,
+    mB,
+    mL,
+    mR,
+    gX,
+    gY,
     cropMarks,
     sheetDim,
     currentSheetIndex,
     layoutPages,
     canvasWidth,
-    canvasHeight
+    canvasHeight,
+    keepOriginalSize
   ]);
 
   return (
@@ -438,35 +535,6 @@ export default function PdfCanvasPreview({
           <span className="text-sm">Đang trích xuất các trang PDF...</span>
         </div>
       )}
-
-      {/* Floating Zoom & Controls Bar */}
-      <div className="absolute top-4 z-10 flex items-center gap-2 bg-slate-800/90 backdrop-blur-md border border-slate-700/50 rounded-full px-4 py-1.5 shadow-xl transition-all hover:bg-slate-800">
-        <button
-          onClick={() => setZoom(Math.max(0.5, zoom - 0.15))}
-          title="Thu nhỏ"
-          className="text-slate-300 hover:text-white p-1 hover:bg-slate-700/60 rounded-full transition-colors text-xs font-bold w-6 h-6 flex items-center justify-center"
-        >
-          ➖
-        </button>
-        <span className="text-xs font-mono font-bold text-slate-200 px-2 min-w-[50px] text-center">
-          {Math.round(zoom * 100)}%
-        </span>
-        <button
-          onClick={() => setZoom(Math.min(2.5, zoom + 0.15))}
-          title="Phóng to"
-          className="text-slate-300 hover:text-white p-1 hover:bg-slate-700/60 rounded-full transition-colors text-xs font-bold w-6 h-6 flex items-center justify-center"
-        >
-          ➕
-        </button>
-        <div className="w-px h-4 bg-slate-700 mx-1"></div>
-        <button
-          onClick={() => setZoom(1.0)}
-          title="Kích thước chuẩn"
-          className="text-xs text-indigo-400 hover:text-indigo-300 font-bold px-2 py-0.5 hover:bg-slate-700/60 rounded transition-colors"
-        >
-          100%
-        </button>
-      </div>
 
       {/* Khung vẽ Canvas mô phỏng Tờ Giấy In thật */}
       <div className="bg-slate-950 p-8 rounded-2xl border border-slate-800 shadow-2xl flex justify-center items-center w-full overflow-auto max-h-[600px] min-h-[400px] custom-scrollbar">
